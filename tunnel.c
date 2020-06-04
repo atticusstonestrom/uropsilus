@@ -1,7 +1,6 @@
 #include "general.h"
-#include "packet-decode.h"
 #include "packet-encode.h"
-#include "raw-sockets.h"
+#include "tunnel-sockets.h"
 #include "tunnel.h"
 
 #include <time.h>
