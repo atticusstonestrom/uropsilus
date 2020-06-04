@@ -90,6 +90,15 @@ void set_sock_bpf(int sockfd, struct sock_filter *code, int code_len) {
 
 ////////////////////////////////////////////////////////////////////////////////////
 //devices
+short get_interface_flags(char *iface, int sockfd) { //make a print_flags function
+	struct ifreq ifr;
+	memset(&ifr, 0x00, sizeof(ifr));
+	strncpy(ifr.ifr_name, iface, IFNAMSIZ-1);
+	if(ioctl(sockfd, SIOCGIFFLAGS, &ifr)==-1) {
+		close(sockfd);
+		fatal("getting interface flags"); }
+	return ifr.ifr_flags; }
+
 int get_interface_index(char *iface, int sockfd) {
 	struct ifreq ifr;
 	memset(&ifr, 0x00, sizeof(ifr));
