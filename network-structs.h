@@ -1,5 +1,3 @@
-//ipv4 address as union? int and char array
-
 #ifndef NET_STRUCTS
 #define NET_STRUCTS
 
