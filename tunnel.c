@@ -1,7 +1,8 @@
-#include "general.h"
+#include "tunnel-general.h"
 #include "packet-encode.h"
 #include "tunnel-sockets.h"
-#include "tunnel.h"
+#include "tunnel-structs.h"
+#include "tunnel-packets.h"
 
 #include <time.h>
 #include <signal.h>
