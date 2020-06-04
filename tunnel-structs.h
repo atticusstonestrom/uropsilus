@@ -1,5 +1,6 @@
 #include "tunnel-general.h"
 #include "network-structs.h"
+#include "general-packets.h"
 
 #ifndef TUNNEL_STRUCTS
 #define TUNNEL_STRUCTS
