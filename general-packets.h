@@ -1,4 +1,4 @@
-#include "general.h"
+#include "tunnel-general.h"
 #include "network-structs.h"
 
 #ifndef GENERAL_PACKETS
