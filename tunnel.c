@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
 	
 	cmdline(argc, argv);
 	
-	if(signal(SIGINT, terminate)==-1) {
+	if(signal(SIGINT, terminate)==SIG_ERR) {
 		fatal("setting termination routine"); }
 	
 	if(client_flag) {
