@@ -1,25 +1,21 @@
 #include "general.h"
 #include "network-structs.h"
 
-#ifndef PACKET_ENCODE
-#define PACKET_ENCODE
-
-//make tcp_syn_packet, make_arp_request
-
-//#define MAX_PACKET_LEN ETHER_FRAME_MAX_LEN
+#ifndef GENERAL_PACKETS
+#define GENERAL_PACKETS
 
 void encode_eth_hdr(struct ether_hdr *, uchar *, uchar *, ushort);
 void encode_pseudo_hdr(struct pseudo_hdr *, uchar *, uchar *, uchar, ushort);
 void encode_ipv4_hdr(struct ipv4_hdr *, uchar *, uchar *,
 		     uchar, ushort, ushort, ushort, uchar, uchar);
-void encode_tcp_hdr(struct tcp_hdr *, ushort, ushort,
+/*void encode_tcp_hdr(struct tcp_hdr *, ushort, ushort,
 		    uint, uint, uchar, uchar, ushort,
-		    ushort, uchar *);
+		    ushort, uchar *);*/
 void encode_arp_hdr(struct arp_hdr *, ushort,
 		    uchar *, uchar *,
 		    uchar *, uchar *);
-void encode_udp_hdr(struct udp_hdr *, ushort,
-		    ushort, ushort, ushort);
+/*void encode_udp_hdr(struct udp_hdr *, ushort,
+		    ushort, ushort, ushort);*/
 void encode_icmp_hdr(struct icmp_hdr *, uchar,
 		     uchar, ushort, uchar *);
 
@@ -52,69 +48,6 @@ uint make_arp_packet(uchar *buffer, uint buffer_len,
 	encode_eth_hdr((struct ether_hdr *)(buffer), ether_src, ether_dst, ETHER_TYPE_ARP);
 	encode_arp_hdr((struct arp_hdr *)(buffer+ETHER_HDR_LEN), op, arp_src_eth, arp_src_ip, arp_dst_eth, arp_dst_ip);
 	//deal with packets being too small; does kernel handle this?
-	return packet_len; }
-
-//make ipv6 tcp packet
-//for dealing with fragmentation, max frame length is 1514
-uint make_tcp_packet(uchar *buffer, uint buffer_len, 
-		     uchar *ether_src, uchar *ether_dst,
-		     uchar *ip_src, uchar *ip_dst, uchar tos, ushort id, uchar ttl,
-		     ushort src_port, ushort dst_port, uint seq, uint ack, uchar flags, ushort window, 
-		     uchar *options, uint options_len,
-		     uchar *data, uint data_len) {
-	uint tcp_hdr_len=TCP_HDR_MIN_LEN+( (options_len+3) & ~0x03 );
-	uint packet_len=ETHER_HDR_LEN+IPv4_HDR_LEN+tcp_hdr_len+data_len;
-	uchar *pseudo_datagram=buffer+ETHER_HDR_LEN+IPv4_HDR_LEN-PSEUDO_HDR_LEN;
-	
-	memset(buffer, 0x00, buffer_len);
-	
-	if(packet_len>PACKET_MAX_LEN) {
-		fatal("requested packet too large"); }
-	if(buffer_len<packet_len) {
-		fatal("buffer size too small for tcp packet"); }
-	
-	encode_pseudo_hdr((struct pseudo_hdr *)(pseudo_datagram), ip_src, ip_dst, IPv4_TYPE_TCP, tcp_hdr_len+data_len);
-	encode_tcp_hdr((struct tcp_hdr *)(buffer+ETHER_HDR_LEN+IPv4_HDR_LEN), src_port, dst_port, seq, ack, tcp_hdr_len/4, flags, window, 0, options);
-	if(data_len) {
-		memcpy(buffer+packet_len-data_len, data, data_len); }
-	((struct tcp_hdr *)(buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->tcp_checksum =
-		htons(checksum(pseudo_datagram, PSEUDO_HDR_LEN+tcp_hdr_len+data_len));
-	/*if(ether_src==NULL) {
-		ether_src=get_mac_addr(DEFAULT_INTERFACE); }*/
-	//deal with fragmentation
-	encode_eth_hdr((struct ether_hdr *)(buffer), ether_src, ether_dst, ETHER_TYPE_IPv4);
-	encode_ipv4_hdr((struct ipv4_hdr *)(buffer+ETHER_HDR_LEN), ip_src, ip_dst, tos, packet_len-ETHER_HDR_LEN, id, IPv4_FRAG_DF_MASK, ttl, IPv4_TYPE_TCP);
-
-	return packet_len; }
-
-uint make_udp_packet(uchar *buffer, uint buffer_len, 
-		      uchar *ether_src, uchar *ether_dst, 
-		      uchar *ip_src, uchar *ip_dst, uchar tos, ushort id, uchar ttl,
-		      ushort src_port, ushort dst_port, 
-		      uchar *data, int data_len) {
-	uint packet_len=ETHER_HDR_LEN+IPv4_HDR_LEN+UDP_HDR_LEN+data_len;
-	uchar *pseudo_datagram=buffer+ETHER_HDR_LEN+IPv4_HDR_LEN-PSEUDO_HDR_LEN;
-
-	memset(buffer, 0x00, buffer_len);
-
-	if(packet_len>PACKET_MAX_LEN) {
-		fatal("requested packet too large"); }
-	if(buffer_len<packet_len) {
-		fatal("buffer size too small for tcp packet"); }
-	
-	encode_pseudo_hdr((struct pseudo_hdr *)(pseudo_datagram), ip_src, ip_dst, IPv4_TYPE_TCP, UDP_HDR_LEN+data_len);
-	encode_udp_hdr((struct udp_hdr *)(buffer+ETHER_HDR_LEN+IPv4_HDR_LEN), src_port, dst_port, UDP_HDR_LEN+data_len, 0);
-	if(data_len) {
-		memcpy(buffer+packet_len-data_len, data, data_len); }
-	((struct udp_hdr *)(buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->udp_checksum =
-		htons(checksum(pseudo_datagram, PSEUDO_HDR_LEN+UDP_HDR_LEN+data_len));
-	
-	/*if(ether_src==NULL) {
-		ether_src=get_mac_addr(DEFAULT_INTERFACE); }*/
-	//deal with fragmentation
-	encode_eth_hdr((struct ether_hdr *)(buffer), ether_src, ether_dst, ETHER_TYPE_IPv4);
-	encode_ipv4_hdr((struct ipv4_hdr *)(buffer+ETHER_HDR_LEN), ip_src, ip_dst, tos, packet_len-ETHER_HDR_LEN, id, IPv4_FRAG_DF_MASK, ttl, IPv4_TYPE_UDP);
-
 	return packet_len; }
 
 uint make_icmp_packet(uchar *buffer, uint buffer_len, 
@@ -206,15 +139,6 @@ void encode_arp_hdr(struct arp_hdr *arph, ushort op,
 	memcpy(arph->arp_dst_addr_eth, dst_addr_eth, ETHER_ADDR_LEN);
 	memcpy(arph->arp_src_addr_ip, src_addr_ip, IPv4_ADDR_LEN);
 	memcpy(arph->arp_dst_addr_ip, dst_addr_ip, IPv4_ADDR_LEN); }
-
-//len is length of udp header and data in bytes
-void encode_udp_hdr(struct udp_hdr *udph, ushort src_port, 
-		    ushort dst_port, ushort len, ushort csum) {
-	memset((void *)udph, 0x00, UDP_HDR_LEN);
-	udph->udp_src_port=htons(src_port);
-	udph->udp_dst_port=htons(dst_port);
-	udph->udp_len=htons(len);
-	udph->udp_checksum=htons(csum); }
 
 void encode_icmp_hdr(struct icmp_hdr *icmph, uchar type,
 		     uchar code, ushort csum, uchar *options) {
