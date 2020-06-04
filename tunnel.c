@@ -1,5 +1,5 @@
 #include "tunnel-general.h"
-#include "packet-encode.h"
+#include "general-packets.h"
 #include "tunnel-sockets.h"
 #include "tunnel-structs.h"
 #include "tunnel-packets.h"
