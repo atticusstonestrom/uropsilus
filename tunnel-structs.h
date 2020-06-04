@@ -1,3 +1,4 @@
+#include "tunnel-general.h"
 #include "network-structs.h"
 
 #ifndef TUNNEL_STRUCTS
