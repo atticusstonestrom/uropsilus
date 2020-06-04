@@ -8,8 +8,8 @@
 #include <linux/if_packet.h>
 #include <linux/filter.h>
 
-#include "general.h"
-#include "packet-encode.h"
+#include "tunnel-general.h"
+#include "general-packets.h"
 #include "network-structs.h"
 
 #ifndef TUNNEL_SOCKS
