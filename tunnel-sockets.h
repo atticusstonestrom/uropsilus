@@ -12,68 +12,8 @@
 #include "packet-encode.h"
 #include "network-structs.h"
 
-//get_random_mac, get_random_ipv4
-//ipv6
-//get_default_iface
-
-//dhcp
-	//turn wifi on (bpf to turn off arp): https://tools.ietf.org/html/rfc2131
-//udp ports 67/68
-//attacking network protocols
-
-//windows netbios: udp port 137
-//network time protocol: udp port 123
-//dns lookup: udp port 53
-
-//bluetooth
-
-//wifi:
-//https://superuser.com/questions/1478839/why-are-there-no-wireless-switches
-//maybe need device driver, like windows
-//https://github.com/markqvist/WiPacket
-//are 802.11 packets converted to 802.3 packets in monitor mode?
-//is arp relevant for wireless networks: https://www.packetnexus.com/docs/arppoison.pdf
-
-//raw ip sockets
-//get gateway in /proc/net/route
-//https://stackoverflow.com/questions/33231034/whats-the-meaning-of-proc-net-rotue-columns-especially-flags-column
-//https://stackoverflow.com/questions/3288065/getting-gateway-to-use-for-a-given-ip-in-ansi-c
-//https://unix.stackexchange.com/questions/204260/where-is-routing-table-stored-internally-in-the-linux-kernel
-//https://en.wikipedia.org/wiki/Lule%C3%A5_algorithm
-//is there gateway or subnet if connected to modem?
-//mirai/shodan gateway iot public/private
-//https://stackoverflow.com/questions/51409776/how-did-a-computer-knows-where-to-send-the-packet-to-only-with-an-ip-not-mac
-
-//functions to modify route table
-	//https://stackoverflow.com/questions/6358431/can-i-read-write-the-routing-table-in-c-without-using-system-command
-	//ioctl routes
-	//https://stackoverflow.com/questions/548105/default-gateway-in-c-on-linux
-//same for iptables?
-
-
-/*
-https://unix.stackexchange.com/questions/232944/device-vs-network-interface-ip-addresses
-interface vs device
-https://stackoverflow.com/questions/22011725/what-is-interface-in-socket-programming
-https://stackoverflow.com/questions/55397673/send-packets-from-a-specific-interface-in-c
-https://stackoverflow.com/questions/26278882/manually-specify-which-network-interface-to-send-data
-what interface does a socket send from
-https://stackoverflow.com/questions/4297356/how-does-a-socket-know-which-network-interface-controller-to-use
-https://codingrelic.geekhold.com/2009/10/code-snippet-sobindtodevice.html
-which interface does a raw socket listen on
-https://stackoverflow.com/questions/13082023/raw-socket-listener*/
-
-//in open_socket should turn the interface *off* promiscuous mode
-//https://www.oreilly.com/library/view/linux-device-drivers/0596005903/ch17.html
-//SIOCSIFFLAGS, shut down
-//https://stackoverflow.com/questions/41678219/how-to-properly-put-network-interface-into-promiscuous-mode-on-linux
-//is mreq multicast?
-//what is an interface index
-
-//can we use write()? maybe if we bind?
-
-#ifndef RAW_SOCKS
-#define RAW_SOCKS
+#ifndef TUNNEL_SOCKS
+#define TUNNEL_SOCKS
 
 ////////////////////////////////////////////////////////////////////////////////////
 //sockets
@@ -124,11 +64,6 @@ void bind_sock_to_iface(int sockfd, int if_index) {
 		close(sockfd);
 		fatal("binding socket to interface"); }}
 
-void set_sock_broadcast(int sockfd, int broadcast_flag) {
-	if(setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast_flag, sizeof(broadcast_flag))==-1) {
-		close(sockfd);
-		fatal("setting broadcast socket option"); }}
-
 void set_sock_nonblock(int sockfd) {
 	int flags;
 	if( (flags=fcntl(sockfd, F_GETFL))==-1 ) {
@@ -155,15 +90,6 @@ void set_sock_bpf(int sockfd, struct sock_filter *code, int code_len) {
 
 ////////////////////////////////////////////////////////////////////////////////////
 //devices
-short get_interface_flags(char *iface, int sockfd) { //make a print_flags function
-	struct ifreq ifr;
-	memset(&ifr, 0x00, sizeof(ifr));
-	strncpy(ifr.ifr_name, iface, IFNAMSIZ-1);
-	if(ioctl(sockfd, SIOCGIFFLAGS, &ifr)==-1) {
-		close(sockfd);
-		fatal("getting interface flags"); }
-	return ifr.ifr_flags; }
-
 int get_interface_index(char *iface, int sockfd) {
 	struct ifreq ifr;
 	memset(&ifr, 0x00, sizeof(ifr));
@@ -208,20 +134,6 @@ uchar *get_subnet_mask(char *iface, int sockfd) {
 	memcpy(local_subnet_mask, ((uchar *)&(ifr.ifr_addr))+4, IPv4_ADDR_LEN);
 	return local_subnet_mask; }
 
-uchar *get_broadcast_addr(char *iface, int sockfd) {
-	static __thread uchar local_broadcast_addr[IPv4_ADDR_LEN];
-	struct ifreq ifr;
-	memset(&ifr, 0x00, sizeof(ifr));
-	strncpy(ifr.ifr_name, iface, IFNAMSIZ-1);
-	if(!(get_interface_flags(iface, sockfd) & IFF_BROADCAST)) {
-		close(sockfd);
-		fatal("broadcast address not valid"); }
-	if(ioctl(sockfd, SIOCGIFBRDADDR, &ifr)==-1) {
-		close(sockfd);
-		fatal("getting interface broadcast address"); }
-	memcpy(local_broadcast_addr, ((uchar *)&(ifr.ifr_addr))+4, IPv4_ADDR_LEN);
-	return local_broadcast_addr; }
-
 void set_iface_promisc(char *iface, int sockfd) {
 	short if_flags=get_interface_flags(iface, sockfd);
 	struct ifreq ifr;
@@ -231,23 +143,10 @@ void set_iface_promisc(char *iface, int sockfd) {
 	if(ioctl(sockfd, SIOCSIFFLAGS, &ifr)==-1) {
 		close(sockfd);
 		fatal("setting interface to promiscuous mode"); }}
-
-void set_iface_conserv(char *iface, int sockfd) {
-	short if_flags=get_interface_flags(iface, sockfd);
-	struct ifreq ifr;
-	memset(&ifr, 0x00, sizeof(ifr));
-	strncpy(ifr.ifr_name, iface, IFNAMSIZ-1);
-	ifr.ifr_flags=if_flags & ~IFF_PROMISC;
-	if(ioctl(sockfd, SIOCSIFFLAGS, &ifr)==-1) {
-		close(sockfd);
-		fatal("setting interface off from promiscuous mode"); }}
 ////////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////////
 //routing
-
-//https://stackoverflow.com/questions/33231034/whats-the-meaning-of-proc-net-rotue-columns-especially-flags-column
-//stores in network order
 struct route_table_entry {
 	char iface[IFNAMSIZ];
 	uint destination;
@@ -353,6 +252,5 @@ uchar *get_gateway_mac(char *iface, uchar *gateway_ipv4, int timeout) {
 	memcpy(gateway_ether_addr, ((struct arp_hdr *)(reply+ETHER_HDR_LEN))->arp_src_addr_eth, ETHER_ADDR_LEN);
 	return gateway_ether_addr; }
 ////////////////////////////////////////////////////////////////////////////////////
-
 
 #endif
