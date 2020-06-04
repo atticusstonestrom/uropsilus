@@ -5,8 +5,8 @@
 #include <unistd.h>
 #include <time.h>
 
-#ifndef GENERAL
-#define GENERAL
+#ifndef TUNNEL_GENERAL
+#define TUNNEL_GENERAL
 
 void fatal(char *message) {
 	char error_message[100];
