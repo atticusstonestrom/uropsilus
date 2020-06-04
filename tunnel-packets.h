@@ -195,8 +195,8 @@ int decode_tunnel_pkt(uint icmp_frame_len) {
 		
 	
 	memset(tcp_buffer, 0x00, ETHER_HDR_LEN+icmp_frame_len-TOTAL_HDR_LEN);
-	encode_eth_hdr((struct ether_hdr *)(tcp_buffer), client_flag ? "\x00\x00\x00\x00\x00\x00":local_mac,
-		       client_flag ? "\x00\x00\x00\x00\x00\x00":gateway_mac, ETHER_TYPE_IPv4);
+	encode_eth_hdr((struct ether_hdr *)(tcp_buffer), client_flag ? (uchar)"\x00\x00\x00\x00\x00\x00":local_mac,
+		       client_flag ? (uchar)"\x00\x00\x00\x00\x00\x00":gateway_mac, ETHER_TYPE_IPv4);
 
 	memcpy(tcp_buffer+ETHER_HDR_LEN, icmp_buffer+TOTAL_HDR_LEN, icmp_frame_len-TOTAL_HDR_LEN);
 	
