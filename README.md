@@ -2,7 +2,7 @@
 Linux based protocol for tunneling TCP traffic over ICMP
 
 
-Broad overview:
+#Broad overview:
 
 Uropsilus is a protocol built on top of ICMP that allows TCP messages to be tunneled over ICMP echo requests and replies (the same service used by the ping network utility). To run it, you need a computer to act as client (for instance, your laptop connected to a public Wifi network), and a remote computer with a trusted internet connection to act as proxy. Unfortunately, at present both hosts must be running Linux and you must have root access on both. Uropsilus also offers client-proxy encryption, but at present the protocol uses symmetric encryption, so the two hosts must have agreed on a private key beforehand.
 
