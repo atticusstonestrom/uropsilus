@@ -192,6 +192,14 @@ int add_client(uchar *new_addr, ushort mtp) {
 	client_table=new_client;
 	return 0; }
 
+struct client_entry *find_client(uchar *ip_addr) {
+	struct client_entry *client=client_table;
+	while(client!=NULL) {
+		if(*(uint *)(client->address)==*(uint *)ip_addr) {
+			break; }
+		client=client->next; }
+	return client; }
+
 //need to free frags in here
 void del_client(uchar *ip_addr) {
 	struct client_entry *current_client=client_table;
