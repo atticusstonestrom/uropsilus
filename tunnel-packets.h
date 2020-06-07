@@ -36,6 +36,7 @@ extern uchar proxy_addr[IPv4_ADDR_LEN];
 
 /////////////////////////
 //proxy variables
+extern struct client_entry current_client *;
 extern struct nat_entry nat_table[MAX_NUM_PORTS];
 extern ushort rx_port;
 extern ushort tx_port;
@@ -113,12 +114,6 @@ void tcp_checksum(uint tcp_frame_len) {
 
 //returns -1 to drop packet
 int encode_tunnel_pkt(uint tcp_frame_len, uchar flags, ushort echo_id) {
-	frag_flag=0;
-	/*if(TOTAL_HDR_LEN+tcp_frame_len-ETHER_HDR_LEN>PACKET_MAX_LEN) {
-		return -1; }*/
-	if(tcp_frame_len-ETHER_HDR_LEN>max_tunnel_payload) {
-		frag_flag=1; }
-	
 	////////////////////////////////////////////
 	//how to account for unwanted tcp traffic?//
 	////////////////////////////////////////////
@@ -133,9 +128,18 @@ int encode_tunnel_pkt(uint tcp_frame_len, uchar flags, ushort echo_id) {
 		else {
 			tx_port=nat_table[rx_port-NAT_TABLE_OFFSET].port; 
 			ip_dst=nat_table[rx_port-NAT_TABLE_OFFSET].address;
+			//account for NULL ptr return here
+			max_tunnel_payload=
+				find_client(((struct ipv4_hdr *)(icmp_buffer+ETHER_HDR_LEN))->ip_src_addr)->max_tunnel_payload;
 			//printf("[debug] ip_dst: %s\n", ipv4_xtoa(ip_dst));
 			replace_mss((struct tcp_hdr *)(tcp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN));
 			((struct tcp_hdr *)(tcp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->tcp_dst_port=htons(tx_port); }}
+
+	frag_flag=0;
+	/*if(TOTAL_HDR_LEN+tcp_frame_len-ETHER_HDR_LEN>PACKET_MAX_LEN) {
+		return -1; }*/
+	if(tcp_frame_len-ETHER_HDR_LEN>max_tunnel_payload) {
+		frag_flag=1; }
 	
 	//memset(icmp_buffer, 0x00, sizeof(icmp_buffer));
 	memset(icmp_buffer, 0x00, TOTAL_HDR_LEN+tcp_frame_len-ETHER_HDR_LEN);
@@ -200,6 +204,10 @@ int decode_tunnel_pkt(uint icmp_frame_len) {
 
 	memcpy(tcp_buffer+ETHER_HDR_LEN, icmp_buffer+TOTAL_HDR_LEN, icmp_frame_len-TOTAL_HDR_LEN);
 	
+	//account for NULL ptr return here
+	if(!client_flag) {
+		max_tunnel_payload=
+			find_client(((struct ipv4_hdr *)(icmp_buffer+ETHER_HDR_LEN))->ip_src_addr)->max_tunnel_payload; }
 	replace_mss((struct tcp_hdr *)(tcp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN));
 	if(client_flag) {
 		memcpy(((struct ipv4_hdr *)(tcp_buffer+ETHER_HDR_LEN))->ip_dst_addr, local_ipv4, IPv4_ADDR_LEN);
