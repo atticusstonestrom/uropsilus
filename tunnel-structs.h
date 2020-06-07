@@ -56,6 +56,8 @@ struct client_entry {
 	struct client_entry *next;
 	uchar address[IPv4_ADDR_LEN];
 	ushort max_tunnel_payload;
+	//have tx_ring_len
+	//instead of tx_ring_end
 	uchar tx_ring_start; 
 	uchar tx_ring_end; 
 	struct tx_ring_entry tx_ring[MAX_TX_RING_SIZE]; };
