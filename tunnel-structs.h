@@ -55,6 +55,7 @@ struct tx_ring_entry {
 struct client_entry {
 	struct client_entry *next;
 	uchar address[IPv4_ADDR_LEN];
+	ushort max_tunnel_payload;
 	uchar tx_ring_start; 
 	uchar tx_ring_end; 
 	struct tx_ring_entry tx_ring[MAX_TX_RING_SIZE]; };
@@ -77,9 +78,11 @@ struct tunnel_hdr {
 #define TUNNEL_MRE 0x08
 #define TUNNEL_FIN 0x10
 #define TUNNEL_FRG 0x20
+	union __attribute__((packed)) {
+		unsigned short mtp;
+		unsigned short intact_len; };
 	unsigned short frag_offset;
 	unsigned short frag_id;
-	unsigned short intact_len;
 	unsigned char nfrags;
 	//unsigned char seq;
 	//unsigned short rsv;
@@ -177,13 +180,14 @@ int push_tx_entry(uint icmp_frame_len) {
 	return -1; }
 
 //returns -1 on malloc error
-int add_client(uchar *new_addr) {
+int add_client(uchar *new_addr, ushort mtp) {
 	if(nclients>=MAX_NUM_CLIENTS) {
 		return -1; }
 	struct client_entry *new_client=(struct client_entry *)calloc(1, sizeof(struct client_entry));
 	if(new_client==NULL) {
 		return -1; }
 	memcpy(new_client->address, new_addr, IPv4_ADDR_LEN);
+	new_client->max_tunnel_payload=mtp;
 	new_client->next=client_table;
 	client_table=new_client;
 	return 0; }
