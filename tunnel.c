@@ -14,10 +14,6 @@
 //cmd line
 uint private_key=0xdeadbeef;
 int verbose_flag=0;
-int refill_timeout=100;
-//ushort max_tunnel_payload=996-TUNNEL_HDR_LEN;
-ushort max_tunnel_payload=900-TUNNEL_HDR_LEN;
-int min_id_buffer=15;
 int client_flag=0;
 int gateway_flag=0;
 char interface[IFNAMSIZ]="eth0";
@@ -57,6 +53,9 @@ uchar proxy_addr[IPv4_ADDR_LEN];
 char loopback[IFNAMSIZ]="lo";
 int loopback_index=-1;
 ushort next_id=0;
+//ushort max_tunnel_payload=996-TUNNEL_HDR_LEN;
+ushort max_tunnel_payload=900-TUNNEL_HDR_LEN;
+int refill_timeout=100;
 ulong last_time;
 struct timeval timeout_tv;
 struct sockaddr_ll from;
@@ -65,6 +64,8 @@ socklen_t fromlen;
 
 /////////////////////////
 //proxy variables
+ushort client_mtp;
+
 int nports;
 struct nat_entry nat_table[MAX_NUM_PORTS];
 
@@ -217,6 +218,14 @@ int main(int argc, char **argv) {
 			FD_ZERO(&readfds);
 			FD_SET(icmp_sockfd, &readfds);
 			make_tunnel_msg(proxy_addr, TUNNEL_SYN, next_id);
+			((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->mtp=
+				htons(max_tunnel_payload);
+			((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->checksum=0;
+			((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->checksum =
+				htons(checksum(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN, TUNNEL_HDR_LEN));
+			((struct icmp_hdr *)(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->icmp_checksum=0;
+			((struct icmp_hdr *)(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->icmp_checksum =
+				htons(checksum(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN, ICMP_HDR_LEN+TUNNEL_HDR_LEN));
 			printf("\tsending SYN packet, id %d...\n", next_id);
 			next_id++;
 			send_frame(icmp_sockfd, if_index, icmp_buffer, TOTAL_HDR_LEN);
@@ -334,7 +343,8 @@ int main(int argc, char **argv) {
 				else if(!client_flag) {
 					if(pkt_flags & TUNNEL_SYN) {
 						printf("\tconnection request\n");
-						if(add_client(pkt_src)!=-1) {
+						client_mtp=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->mtp);
+						if(add_client(pkt_src, client_mtp)!=-1) {
 							make_tunnel_msg(pkt_src, TUNNEL_ACK|TUNNEL_SYN, pkt_id);
 							printf("\tadded client, returning SYN-ACK, ");
 							send_frame(icmp_sockfd, if_index, icmp_buffer, TOTAL_HDR_LEN);
@@ -561,8 +571,8 @@ void usage(char *arg) {
 	       "\t-k <key>\tset private key, default is 0x%x\n"
 	       "\t-g <gateway>\tgateway ip address\n"
 	       "\t-i <interface>\tdevice for remote communication, default is '%s'\n"
-	       "\t-m <max ping>\tmaximum allowed data in ping messsage, default is %d\n"
 	       "\n"
+	       "\t-m <max ping>\tmaximum allowed ping payload, default is %d\t[client only]\n"
 	       "\t-t <timeout>\ttime before id refill in ms, default is %d\t[client only]\n"
 	       "\t-l <loopback>\tloopback device name, default is '%s'\t\t[client only]\n"
 	       "\t-p <proxy>\tipv4 address of proxy\t\t\t\t[client only]\n"
