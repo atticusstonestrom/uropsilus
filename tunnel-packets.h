@@ -36,7 +36,7 @@ extern uchar proxy_addr[IPv4_ADDR_LEN];
 
 /////////////////////////
 //proxy variables
-extern struct client_entry current_client *;
+extern struct client_entry *current_client;
 extern struct nat_entry nat_table[MAX_NUM_PORTS];
 extern ushort rx_port;
 extern ushort tx_port;
