@@ -46,9 +46,9 @@ struct nat_entry {
 #define MAX_NUM_PORTS 50
 extern struct nat_entry nat_table[MAX_NUM_PORTS];
 
-#define MAX_NUM_CLIENTS 5
+#define MAX_NUM_CLIENTS 10
 extern int nclients;
-#define MAX_TX_RING_SIZE 512			//client tx ring
+#define MAX_TX_RING_SIZE 255			//client tx ring
 struct tx_ring_entry {
 	uint packet_len;
 	uchar *packet; };
@@ -56,10 +56,9 @@ struct client_entry {
 	struct client_entry *next;
 	uchar address[IPv4_ADDR_LEN];
 	ushort max_tunnel_payload;
-	//have tx_ring_len
-	//instead of tx_ring_end
+	uchar *tx_pool;
 	uchar tx_ring_start; 
-	uchar tx_ring_end; 
+	uchar tx_ring_len;
 	struct tx_ring_entry tx_ring[MAX_TX_RING_SIZE]; };
 extern struct client_entry *client_table;
 extern ushort rx_port;
@@ -190,6 +189,9 @@ int add_client(uchar *new_addr, ushort mtp) {
 		return -1; }
 	memcpy(new_client->address, new_addr, IPv4_ADDR_LEN);
 	new_client->max_tunnel_payload=mtp;
+	new_client->tx_pool=malloc(MAX_TX_RING_SIZE*(TUNNEL_HDR_LEN+mtp));
+	if(new_client->tx_pool==NULL) {
+		return -1; }
 	new_client->next=client_table;
 	client_table=new_client;
 	return 0; }
