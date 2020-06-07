@@ -37,6 +37,9 @@ ushort pkt_flags;
 ushort pkt_id;
 uchar pkt_src[IPv4_ADDR_LEN];
 
+//ushort max_tunnel_payload=996-TUNNEL_HDR_LEN;
+ushort max_tunnel_payload=900-TUNNEL_HDR_LEN;
+
 int frag_flag;
 struct frag_entry *frag_table=NULL;
 uchar num_frags;
@@ -53,8 +56,6 @@ uchar proxy_addr[IPv4_ADDR_LEN];
 char loopback[IFNAMSIZ]="lo";
 int loopback_index=-1;
 ushort next_id=0;
-//ushort max_tunnel_payload=996-TUNNEL_HDR_LEN;
-ushort max_tunnel_payload=900-TUNNEL_HDR_LEN;
 int refill_timeout=100;
 ulong last_time;
 struct timeval timeout_tv;
@@ -64,14 +65,13 @@ socklen_t fromlen;
 
 /////////////////////////
 //proxy variables
-ushort client_mtp;
-
 int nports;
 struct nat_entry nat_table[MAX_NUM_PORTS];
 
 int nclients;
 struct client_entry *client_table=NULL;
 
+struct client_entry *current_client;
 int queue_flag;
 ushort rx_port;
 ushort tx_port;
@@ -343,8 +343,8 @@ int main(int argc, char **argv) {
 				else if(!client_flag) {
 					if(pkt_flags & TUNNEL_SYN) {
 						printf("\tconnection request\n");
-						client_mtp=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->mtp);
-						if(add_client(pkt_src, client_mtp)!=-1) {
+						max_tunnel_payload=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->mtp);
+						if(add_client(pkt_src, max_tunnel_payload)!=-1) {
 							make_tunnel_msg(pkt_src, TUNNEL_ACK|TUNNEL_SYN, pkt_id);
 							printf("\tadded client, returning SYN-ACK, ");
 							send_frame(icmp_sockfd, if_index, icmp_buffer, TOTAL_HDR_LEN);
@@ -354,96 +354,100 @@ int main(int argc, char **argv) {
 							make_tunnel_msg(pkt_src, TUNNEL_FIN, pkt_id);
 							send_frame(icmp_sockfd, if_index, icmp_buffer, TOTAL_HDR_LEN);
 							printf("id %d\n", pkt_id); }}
-					else if(pkt_flags & TUNNEL_MRE) {
-						if(verbose_flag) {
-							printf("\tMRE packet\n"); }
-						if((send_length=pop_tx_entry(pkt_src, pkt_id))!=-1) {
+					else {
+						current_client=find_client(pkt_src);
+						//do error checking for NULL ptr here
+						max_tunnel_payload=current_client->max_tunnel_payload;
+						if(pkt_flags & TUNNEL_MRE) {
 							if(verbose_flag) {
-								printf("\tsending %d bytes icmp, id %d\n", send_length, pkt_id); }
-							send_frame(icmp_sockfd, if_index, icmp_buffer, send_length); }}
-					else if(pkt_flags & TUNNEL_FIN) {
-						printf("\tFIN packet, returning FIN-ACK, ");
-						make_tunnel_msg(pkt_src, TUNNEL_FIN|TUNNEL_ACK, pkt_id);
-						send_frame(icmp_sockfd, if_index, icmp_buffer, TOTAL_HDR_LEN);
-						printf("id %d...\n", pkt_id);
-						printf("\tdeleting client\n");
-						del_client(pkt_src); }
-					else if(pkt_flags & TUNNEL_FRG) {
-						current_frag_id=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->frag_id);
-						offset=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->frag_offset);
-						if(verbose_flag) {
-							printf("\tFRG packet, frag id %d\n", current_frag_id); }
-						if(find_frag(current_frag_id, &pkt_frag_entry)==-1) {
-							///////////////////////////////////////////////////////////
-							//next address
-							//memset((void *)pkt_frag_entry, 0x00, sizeof(struct frag_entry));
-							///////////////////////////////////////////////////////////
-							pkt_frag_entry->id=current_frag_id;
-							memcpy(pkt_frag_entry->ip_src, pkt_src, IPv4_ADDR_LEN);
-							//better error handling here
-							pkt_frag_entry->intact_len=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->intact_len);
-							pkt_frag_entry->packet=ec_malloc(pkt_frag_entry->intact_len); 
-							memset(pkt_frag_entry->packet, 0x00, pkt_frag_entry->intact_len);
+								printf("\tMRE packet\n"); }
+							if((send_length=pop_tx_entry(pkt_src, pkt_id))!=-1) {
+								if(verbose_flag) {
+									printf("\tsending %d bytes icmp, id %d\n", send_length, pkt_id); }
+								send_frame(icmp_sockfd, if_index, icmp_buffer, send_length); }}
+						else if(pkt_flags & TUNNEL_FIN) {
+							printf("\tFIN packet, returning FIN-ACK, ");
+							make_tunnel_msg(pkt_src, TUNNEL_FIN|TUNNEL_ACK, pkt_id);
+							send_frame(icmp_sockfd, if_index, icmp_buffer, TOTAL_HDR_LEN);
+							printf("id %d...\n", pkt_id);
+							printf("\tdeleting client\n");
+							del_client(pkt_src); }
+						else if(pkt_flags & TUNNEL_FRG) {
+							current_frag_id=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->frag_id);
+							offset=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->frag_offset);
 							if(verbose_flag) {
-								printf("\tinitialized new fragment table entry, intact length %d\n", pkt_frag_entry->intact_len); }}
-						if(!offset) {
-							pkt_frag_entry->nfrags_left+=((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->nfrags-1;
-							decode_tunnel_pkt(recv_length);
-							memcpy(pkt_frag_entry->packet, tcp_buffer, recv_length-TOTAL_HDR_LEN+ETHER_HDR_LEN);
+								printf("\tFRG packet, frag id %d\n", current_frag_id); }
+							if(find_frag(current_frag_id, &pkt_frag_entry)==-1) {
+								///////////////////////////////////////////////////////////
+								//next address
+								//memset((void *)pkt_frag_entry, 0x00, sizeof(struct frag_entry));
+								///////////////////////////////////////////////////////////
+								pkt_frag_entry->id=current_frag_id;
+								memcpy(pkt_frag_entry->ip_src, pkt_src, IPv4_ADDR_LEN);
+								//better error handling here
+								pkt_frag_entry->intact_len=ntohs(((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->intact_len);
+								pkt_frag_entry->packet=ec_malloc(pkt_frag_entry->intact_len); 
+								memset(pkt_frag_entry->packet, 0x00, pkt_frag_entry->intact_len);
+								if(verbose_flag) {
+									printf("\tinitialized new fragment table entry, intact length %d\n", pkt_frag_entry->intact_len); }}
+							if(!offset) {
+								pkt_frag_entry->nfrags_left+=((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->nfrags-1;
+								decode_tunnel_pkt(recv_length);
+								memcpy(pkt_frag_entry->packet, tcp_buffer, recv_length-TOTAL_HDR_LEN+ETHER_HDR_LEN);
+								if(verbose_flag) {
+									printf("\tdecoded %d byte fragment header\n", recv_length-TOTAL_HDR_LEN+ETHER_HDR_LEN);
+									printf("\tclient sent from port %d\n", rx_port); }}
+								//send nfrags-1 MRE packets, nids++,
+								/*for(i=0; i<((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->nfrags-1; i++) {
+									make_tunnel_msg(proxy_addr, TUNNEL_MRE);
+									send_frame(icmp_sockfd, if_index, icmp_buffer, TOTAL_HDR_LEN);
+									nids++; }} //messes up icmp buffer, that's okay*/
+							else if(offset) {
+								pkt_frag_entry->nfrags_left--;
+								decrypt(icmp_buffer+TOTAL_HDR_LEN, recv_length-TOTAL_HDR_LEN, private_key, offset);
+								memcpy(pkt_frag_entry->packet+ETHER_HDR_LEN+offset, icmp_buffer+TOTAL_HDR_LEN, recv_length-TOTAL_HDR_LEN);
+								if(verbose_flag) {
+									printf("\tadded %d bytes at fragment offset %d\n", recv_length-TOTAL_HDR_LEN, offset); }}
+							if(pkt_frag_entry->nfrags_left==0) {
+								memcpy(tcp_buffer, pkt_frag_entry->packet, pkt_frag_entry->intact_len);
+								tcp_checksum(pkt_frag_entry->intact_len);
+								if(verbose_flag) {
+									printf("\tno remaining fragments\n"
+									       "\tforwarding %d bytes to %s from port %d\n",
+									       pkt_frag_entry->intact_len,
+									       ipv4_xtoa( ((struct ipv4_hdr *)(tcp_buffer+ETHER_HDR_LEN))->ip_dst_addr ),
+									       tx_port); }
+								send_frame(tcp_sockfd, if_index, tcp_buffer, pkt_frag_entry->intact_len);
+								free_frag_entry(pkt_frag_entry); }
+							else {
+								if(verbose_flag) {
+									printf("\twaiting on %d additional fragments\n", pkt_frag_entry->nfrags_left); }}
+							if((send_length=pop_tx_entry(pkt_src, pkt_id))!=-1) {
+								if(verbose_flag) {
+									printf("\tsending %d bytes icmp, id %d\n", send_length, pkt_id); }
+								send_frame(icmp_sockfd, if_index, icmp_buffer, send_length); }}
+
+						else if(pkt_flags & TUNNEL_PSH) {
 							if(verbose_flag) {
-								printf("\tdecoded %d byte fragment header\n", recv_length-TOTAL_HDR_LEN+ETHER_HDR_LEN);
-								printf("\tclient sent from port %d\n", rx_port); }}
-							//send nfrags-1 MRE packets, nids++,
-							/*for(i=0; i<((struct tunnel_hdr *)(icmp_buffer+TOTAL_HDR_LEN-TUNNEL_HDR_LEN))->nfrags-1; i++) {
-								make_tunnel_msg(proxy_addr, TUNNEL_MRE);
-								send_frame(icmp_sockfd, if_index, icmp_buffer, TOTAL_HDR_LEN);
-								nids++; }} //messes up icmp buffer, that's okay*/
-						else if(offset) {
-							pkt_frag_entry->nfrags_left--;
-							decrypt(icmp_buffer+TOTAL_HDR_LEN, recv_length-TOTAL_HDR_LEN, private_key, offset);
-							memcpy(pkt_frag_entry->packet+ETHER_HDR_LEN+offset, icmp_buffer+TOTAL_HDR_LEN, recv_length-TOTAL_HDR_LEN);
-							if(verbose_flag) {
-								printf("\tadded %d bytes at fragment offset %d\n", recv_length-TOTAL_HDR_LEN, offset); }}
-						if(pkt_frag_entry->nfrags_left==0) {
-							memcpy(tcp_buffer, pkt_frag_entry->packet, pkt_frag_entry->intact_len);
-							tcp_checksum(pkt_frag_entry->intact_len);
-							if(verbose_flag) {
-								printf("\tno remaining fragments\n"
-								       "\tforwarding %d bytes to %s from port %d\n",
-								       pkt_frag_entry->intact_len,
-								       ipv4_xtoa( ((struct ipv4_hdr *)(tcp_buffer+ETHER_HDR_LEN))->ip_dst_addr ),
-								       tx_port); }
-							send_frame(tcp_sockfd, if_index, tcp_buffer, pkt_frag_entry->intact_len);
-							free_frag_entry(pkt_frag_entry); }
-						else {
-							if(verbose_flag) {
-								printf("\twaiting on %d additional fragments\n", pkt_frag_entry->nfrags_left); }}
-						if((send_length=pop_tx_entry(pkt_src, pkt_id))!=-1) {
-							if(verbose_flag) {
-								printf("\tsending %d bytes icmp, id %d\n", send_length, pkt_id); }
-							send_frame(icmp_sockfd, if_index, icmp_buffer, send_length); }}
-					
-					else if(pkt_flags & TUNNEL_PSH) {
-						if(verbose_flag) {
-							printf("\tPSH packet...\n"
-							       "\tadding id %d\n", pkt_id); }
-						
-						send_length=decode_tunnel_pkt(recv_length);
-						if(send_length!=-1) {
-							if(verbose_flag) {
-								printf("\tclient sent from port %d\n", rx_port); }
-							send_frame(tcp_sockfd, if_index, tcp_buffer, send_length);
-							if(verbose_flag) {
-								printf("\tforwarded to %s from port %d\n", 
-									   ipv4_xtoa( ((struct ipv4_hdr *)(tcp_buffer+ETHER_HDR_LEN))->ip_dst_addr ), 
-									   tx_port); }}
-						else {
-							if(verbose_flag) {
-								printf("\terror decoding packet, discarded\n"); }}
-						if((send_length=pop_tx_entry(pkt_src, pkt_id))!=-1) {
-							if(verbose_flag) {
-								printf("\tsending %d bytes icmp, id %d\n", send_length, pkt_id); }
-							send_frame(icmp_sockfd, if_index, icmp_buffer, send_length); }}}}
+								printf("\tPSH packet...\n"
+								       "\tadding id %d\n", pkt_id); }
+
+							send_length=decode_tunnel_pkt(recv_length);
+							if(send_length!=-1) {
+								if(verbose_flag) {
+									printf("\tclient sent from port %d\n", rx_port); }
+								send_frame(tcp_sockfd, if_index, tcp_buffer, send_length);
+								if(verbose_flag) {
+									printf("\tforwarded to %s from port %d\n", 
+										   ipv4_xtoa( ((struct ipv4_hdr *)(tcp_buffer+ETHER_HDR_LEN))->ip_dst_addr ), 
+										   tx_port); }}
+							else {
+								if(verbose_flag) {
+									printf("\terror decoding packet, discarded\n"); }}
+							if((send_length=pop_tx_entry(pkt_src, pkt_id))!=-1) {
+								if(verbose_flag) {
+									printf("\tsending %d bytes icmp, id %d\n", send_length, pkt_id); }
+								send_frame(icmp_sockfd, if_index, icmp_buffer, send_length); }}}}}
 			else if(verbose_flag) {
 				printf("\twrong checksum, discarded packet\n"); }}
 			
