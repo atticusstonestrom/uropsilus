@@ -514,6 +514,9 @@ int main(int argc, char **argv) {
 					if(verbose_flag) {
 						printf("\tpacket dropped\n"); }}}
 			else if(!client_flag) {
+				current_client=find_client(pkt_src);
+				//do error checking for NULL ptr here
+				max_tunnel_payload=current_client->max_tunnel_payload;
 				if(verbose_flag) {
 					printf("received %d bytes tcp from %s...\n", recv_length, ipv4_xtoa(pkt_src));
 					printf("\tsource port: %d, destination port: %d...\n", 
