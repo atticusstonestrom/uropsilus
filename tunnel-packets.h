@@ -129,8 +129,7 @@ int encode_tunnel_pkt(uint tcp_frame_len, uchar flags, ushort echo_id) {
 			tx_port=nat_table[rx_port-NAT_TABLE_OFFSET].port; 
 			ip_dst=nat_table[rx_port-NAT_TABLE_OFFSET].address;
 			//account for NULL ptr return here
-			max_tunnel_payload=
-				find_client(((struct ipv4_hdr *)(icmp_buffer+ETHER_HDR_LEN))->ip_src_addr)->max_tunnel_payload;
+			max_tunnel_payload=find_client(ip_dst)->max_tunnel_payload;
 			//printf("[debug] ip_dst: %s\n", ipv4_xtoa(ip_dst));
 			replace_mss((struct tcp_hdr *)(tcp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN));
 			((struct tcp_hdr *)(tcp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->tcp_dst_port=htons(tx_port); }}
