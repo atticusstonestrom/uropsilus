@@ -139,17 +139,17 @@ int pop_tx_entry(uchar *ip_dst, ushort echo_id) {
 	uint buf_len;
 	while(client!=NULL) {
 		if(*(uint *)(client->address)==*(uint *)ip_dst) {
-			if(tx_ring_start==tx_ring_end) {
+			if(client->tx_ring_start==client->tx_ring_end) {
 				break; }
 			else {
 				//printf("[debug] id %d\n", echo_id);
 				pkt_len=client->tx_ring_lens[client->tx_ring_start];
 				buf_len=TUNNEL_HDR_LEN+client->max_tunnel_payload;
-				memcpy(icmp_buffer, tx_ring+tx_ring_start*buf_len, pkt_len);
+				memcpy(icmp_buffer, client->tx_ring+client->tx_ring_start*buf_len, pkt_len);
 				((struct icmp_hdr *)(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->icmp_options.id=htons(echo_id);
 				((struct icmp_hdr *)(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->icmp_checksum=0;
 				((struct icmp_hdr *)(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->icmp_checksum =
-					htons(checksum(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN, len-ETHER_HDR_LEN-IPv4_HDR_LEN));
+					htons(checksum(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN, pkt_len-ETHER_HDR_LEN-IPv4_HDR_LEN));
 				client->tx_ring_start=(++(client->tx_ring_start)>=MAX_TX_RING_SIZE ? 0:(client->tx_ring_start));
 				return pkt_len; }}
 		else {
@@ -234,9 +234,7 @@ void free_clients() {
 	struct client_entry *current_client=client_table;
 	struct client_entry *next_client=NULL;
 	while(current_client!=NULL) {
-		while(current_client->tx_ring_start!=current_client->tx_ring_end) {
-			free((current_client->tx_ring[current_client->tx_ring_start]).packet);
-			current_client->tx_ring_start=(++(current_client->tx_ring_start)>=MAX_TX_RING_SIZE ? 0:(current_client->tx_ring_start)); }
+		free(current_client->tx_ring);
 		next_client=current_client->next;
 		free(current_client);
 		current_client=next_client; }}
