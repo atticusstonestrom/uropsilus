@@ -9,9 +9,9 @@
 /////////////////////////
 //shared variables
 extern int client_flag;
-extern uchar local_mac[ETHER_HDR_LEN];
+extern uchar local_mac[ETHER_ADDR_LEN];
 extern uchar local_ipv4[IPv4_ADDR_LEN];
-extern uchar gateway_mac[ETHER_HDR_LEN];
+extern uchar gateway_mac[ETHER_ADDR_LEN];
 extern uchar gateway_ipv4[IPv4_ADDR_LEN];
 extern uchar icmp_buffer[PACKET_MAX_LEN+ETHER_HDR_LEN];
 extern uchar tcp_buffer[PACKET_MAX_LEN+ETHER_HDR_LEN];
