@@ -54,7 +54,7 @@ struct client_entry {
 	uchar address[IPv4_ADDR_LEN];
 	ushort max_tunnel_payload;
 	uchar tx_ring_start; 
-	uchar tx_ring_size;
+	uchar tx_ring_end;
 	uchar *tx_ring;
 	uint tx_ring_lens[MAX_TX_RING_SIZE]; };
 extern struct client_entry *client_table;
@@ -135,22 +135,23 @@ void free_frag_entry(struct frag_entry *entry) {
 //returns length of tx entry on success
 int pop_tx_entry(uchar *ip_dst, ushort echo_id) {
 	struct client_entry *client=client_table;
-	uint len;
+	uint pkt_len;
+	uint buf_len;
 	while(client!=NULL) {
 		if(*(uint *)(client->address)==*(uint *)ip_dst) {
-			if(tx_ring_len) {
+			if(tx_ring_start==tx_ring_end) {
 				break; }
 			else {
 				//printf("[debug] id %d\n", echo_id);
-				len=(client->tx_ring[client->tx_ring_start]).packet_len;
-				memcpy(icmp_buffer, (client->tx_ring[client->tx_ring_start]).packet, len);
-				free((client->tx_ring[client->tx_ring_start]).packet);
+				pkt_len=client->tx_ring_lens[client->tx_ring_start];
+				buf_len=TUNNEL_HDR_LEN+client->max_tunnel_payload;
+				memcpy(icmp_buffer, tx_ring+tx_ring_start*buf_len, pkt_len);
 				((struct icmp_hdr *)(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->icmp_options.id=htons(echo_id);
 				((struct icmp_hdr *)(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->icmp_checksum=0;
 				((struct icmp_hdr *)(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN))->icmp_checksum =
 					htons(checksum(icmp_buffer+ETHER_HDR_LEN+IPv4_HDR_LEN, len-ETHER_HDR_LEN-IPv4_HDR_LEN));
 				client->tx_ring_start=(++(client->tx_ring_start)>=MAX_TX_RING_SIZE ? 0:(client->tx_ring_start));
-				return len; }}
+				return pkt_len; }}
 		else {
 			client=client->next; }}
 	return -1; }
@@ -161,14 +162,16 @@ int pop_tx_entry(uchar *ip_dst, ushort echo_id) {
 int push_tx_entry(uint icmp_frame_len) {
 	struct client_entry *client=client_table;
 	uchar *ip_dst=((struct ipv4_hdr *)(icmp_buffer+ETHER_HDR_LEN))->ip_dst_addr;
+	uchar *packet;
 	while(client!=NULL) {
 		if(*(uint *)(client->address)==*(uint *)ip_dst) {
 			if((client->tx_ring_end+1) % MAX_TX_RING_SIZE==client->tx_ring_start) {
 				return -1; }
-			if( (client->tx_ring[client->tx_ring_end].packet=malloc(icmp_frame_len))==NULL ) {
-				return -1; }
-			client->tx_ring[client->tx_ring_end].packet_len=icmp_frame_len;
-			memcpy(client->tx_ring[client->tx_ring_end].packet, icmp_buffer, icmp_frame_len);
+			/*if( (client->tx_ring[client->tx_ring_end].packet=malloc(icmp_frame_len))==NULL ) {
+				return -1; }*/
+			client->tx_ring_lens[client->tx_ring_end]=icmp_frame_len;
+			memcpy(client->tx_ring+(TUNNEL_HDR_LEN+client->max_tunnel_payload)*client->tx_ring_end,
+			       icmp_buffer, icmp_frame_len);
 			client->tx_ring_end=(++(client->tx_ring_end)>=MAX_TX_RING_SIZE ? 0:(client->tx_ring_end));
 			if(client->tx_ring_end==client->tx_ring_start) {
 				client->tx_ring_start=(++(client->tx_ring_start)>=MAX_TX_RING_SIZE ? 0:(client->tx_ring_start)); }
@@ -186,8 +189,8 @@ int add_client(uchar *new_addr, ushort mtp) {
 		return -1; }
 	memcpy(new_client->address, new_addr, IPv4_ADDR_LEN);
 	new_client->max_tunnel_payload=mtp;
-	new_client->tx_pool=malloc(MAX_TX_RING_SIZE*(TUNNEL_HDR_LEN+mtp));
-	if(new_client->tx_pool==NULL) {
+	new_client->tx_ring=malloc(MAX_TX_RING_SIZE*(TUNNEL_HDR_LEN+mtp));
+	if(new_client->tx_ring==NULL) {
 		return -1; }
 	new_client->next=client_table;
 	client_table=new_client;
