@@ -21,9 +21,9 @@ char interface[IFNAMSIZ]="eth0";
 
 /////////////////////////
 //shared variables
-uchar local_mac[ETHER_HDR_LEN];
+uchar local_mac[ETHER_ADDR_LEN];
 uchar local_ipv4[IPv4_ADDR_LEN];
-uchar gateway_mac[ETHER_HDR_LEN];
+uchar gateway_mac[ETHER_ADDR_LEN];
 uchar gateway_ipv4[IPv4_ADDR_LEN];
 uchar icmp_buffer[PACKET_MAX_LEN+ETHER_HDR_LEN];
 uchar tcp_buffer[PACKET_MAX_LEN+ETHER_HDR_LEN];
