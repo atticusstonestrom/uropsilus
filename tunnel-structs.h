@@ -54,7 +54,7 @@ struct client_entry {
 	uchar address[IPv4_ADDR_LEN];
 	ushort max_tunnel_payload;
 	uchar tx_ring_start; 
-	uchar tx_ring_len;
+	uchar tx_ring_size;
 	uchar *tx_ring;
 	uint tx_ring_lens[MAX_TX_RING_SIZE]; };
 extern struct client_entry *client_table;
@@ -138,7 +138,7 @@ int pop_tx_entry(uchar *ip_dst, ushort echo_id) {
 	uint len;
 	while(client!=NULL) {
 		if(*(uint *)(client->address)==*(uint *)ip_dst) {
-			if(client->tx_ring_end==client->tx_ring_start) {
+			if(tx_ring_len) {
 				break; }
 			else {
 				//printf("[debug] id %d\n", echo_id);
