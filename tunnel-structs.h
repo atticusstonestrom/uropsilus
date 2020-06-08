@@ -48,18 +48,15 @@ extern struct nat_entry nat_table[MAX_NUM_PORTS];
 
 #define MAX_NUM_CLIENTS 10
 extern int nclients;
-#define MAX_TX_RING_SIZE 255			//client tx ring
-struct tx_ring_entry {
-	uint packet_len;
-	uchar *packet; };
+#define MAX_TX_RING_SIZE 64			//client tx ring
 struct client_entry {
 	struct client_entry *next;
 	uchar address[IPv4_ADDR_LEN];
 	ushort max_tunnel_payload;
-	uchar *tx_pool;
 	uchar tx_ring_start; 
 	uchar tx_ring_len;
-	struct tx_ring_entry tx_ring[MAX_TX_RING_SIZE]; };
+	uchar *tx_ring;
+	uint tx_ring_lens[MAX_TX_RING_SIZE]; };
 extern struct client_entry *client_table;
 extern ushort rx_port;
 extern ushort tx_port;
