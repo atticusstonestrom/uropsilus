@@ -218,9 +218,7 @@ void del_client(uchar *ip_addr) {
 			j++; }}
 	while(current_client!=NULL) {
 		if(*(uint *)(current_client->address)==*(uint *)ip_addr) {
-			while(current_client->tx_ring_start!=current_client->tx_ring_end) {
-				free((current_client->tx_ring[current_client->tx_ring_start]).packet);
-				current_client->tx_ring_start=(++(current_client->tx_ring_start)>=MAX_TX_RING_SIZE ? 0:(current_client->tx_ring_start)); }
+			free(current_client->tx_ring);
 			if(current_client==client_table) {
 				client_table=current_client->next; }
 			else {
